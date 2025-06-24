@@ -5,7 +5,9 @@ use crate::{error::*, permit::Permit, queue::WaitQueue, waiter::AcquireFuture};
 use alloc::sync::Arc;
 use core::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
-/// 整数が大きいほど高優先度
+/// Priority value used by the semaphore.
+///
+/// Larger numbers represent higher priority.
 pub type Priority = i32;
 
 /// Async-aware priority semaphore.
@@ -14,6 +16,16 @@ pub struct PrioritySemaphore {
     pub(crate) waiters: Lock<WaitQueue>,
     max_permit: usize,
     pub(crate) closed: AtomicBool,
+}
+
+impl core::fmt::Debug for PrioritySemaphore {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("PrioritySemaphore")
+            .field("available", &self.available_permits())
+            .field("queued", &self.queued())
+            .field("closed", &self.closed.load(Ordering::Acquire))
+            .finish()
+    }
 }
 
 impl PrioritySemaphore {

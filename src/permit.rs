@@ -4,9 +4,9 @@ use crate::semaphore::PrioritySemaphore;
 use alloc::sync::Arc;
 
 /// Returned by successful acquire; releases permit on `Drop`.
+#[derive(Debug)]
 pub struct Permit {
     root: Arc<PrioritySemaphore>,
-    // you may add weight or id fields here
 }
 
 impl Permit {

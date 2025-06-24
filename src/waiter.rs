@@ -14,6 +14,7 @@ use core::{
 };
 
 /// Future returned by `PrioritySemaphore::acquire`.
+#[derive(Debug)]
 pub struct AcquireFuture {
     pub(crate) root: Arc<PrioritySemaphore>,
     pub(crate) prio: i32,
@@ -47,7 +48,7 @@ impl Future for AcquireFuture {
 
         if !this.in_queue {
             let mut queue = this.root.waiters.lock();
-            let id = queue.push(this.prio, 1, cx.waker().clone());
+            let id = queue.push(this.prio, cx.waker().clone());
             this.wait_id = Some(id);
             this.in_queue = true;
         } else if let Some(id) = this.wait_id {
