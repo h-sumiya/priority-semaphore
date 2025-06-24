@@ -28,7 +28,7 @@ impl Drop for AcquireFuture {
     fn drop(&mut self) {
         if self.in_queue {
             if let Some(id) = self.wait_id {
-                self.root.remove_waiter(id); // ← フィールド直アクセスをやめる
+                self.root.remove_waiter(id);
             }
         }
     }
