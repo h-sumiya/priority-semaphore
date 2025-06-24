@@ -15,6 +15,15 @@ preventing starvation.
 - Optional ageing strategy via the `ageing` feature
 - Zero `unsafe` code
 
+## Installation
+
+Add `priority-semaphore` to your `Cargo.toml`:
+
+```toml
+[dependencies]
+priority-semaphore = "0.1.2"
+```
+
 ## Example
 
 ```rust
@@ -43,6 +52,10 @@ async fn main() {
 ```
 
 More examples can be found in the [`examples`](./examples) directory.
+
+## Documentation
+
+The full API is available at [docs.rs](https://docs.rs/priority-semaphore/).
 
 ## Crate features
 
