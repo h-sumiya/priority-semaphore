@@ -80,6 +80,12 @@ impl WaitQueue {
         }
     }
 
+    pub fn update_waker(&mut self, id: usize, waker: Waker) {
+        if let Some(entry) = self.heap.iter_mut().find(|e| e.id == id) {
+            entry.waker = waker;
+        }
+    }
+
     pub fn len(&self) -> usize {
         self.heap.len()
     }

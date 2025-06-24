@@ -14,6 +14,7 @@ mod error;
 mod permit;
 mod queue;
 mod semaphore;
+mod lock;
 mod util;
 mod waiter;
 
