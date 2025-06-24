@@ -12,7 +12,7 @@ _Currently under heavy development—APIs and internals will break._
 | **`lib.rs`**       | Crate entry; feature gates & public re-exports.            |
 | **`semaphore.rs`** | Core `PrioritySemaphore` logic (permits, dispatch, close). |
 | **`permit.rs`**    | RAII guard that returns the permit on `Drop`.              |
-| **`queue.rs`**     | `BinaryHeap`-based wait queue (`push / pop / remove`).     |
+| **`queue.rs`**     | High-performance heap queue (`push / pop / remove`).     |
 | **`waiter.rs`**    | `AcquireFuture`; cancellation-safe `poll` & cleanup.       |
 | **`error.rs`**     | Tiny error enums (`TryAcquireError`, `AcquireError`).      |
 | **`util.rs`**      | Misc helpers/macros (`doc_cfg`, loom shims, etc.).         |
