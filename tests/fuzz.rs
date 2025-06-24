@@ -40,14 +40,18 @@ async fn random_stress_test() {
                 let prio: i32 = rng.random_range(-10..=10);
 
                 let handle = tokio::spawn(async move {
-                    let _permit = sem.acquire(prio).await.unwrap();
-                    let now = in_flight.fetch_add(1, Ordering::SeqCst) + 1;
-                    peak.fetch_max(now, Ordering::SeqCst);
-                    tokio::task::yield_now().await;
-                    sleep(Duration::from_micros(10)).await;
+                    match sem.acquire(prio).await {
+                        Ok(_permit) => {
+                            let now = in_flight.fetch_add(1, Ordering::SeqCst) + 1;
+                            peak.fetch_max(now, Ordering::SeqCst);
+                            tokio::task::yield_now().await;
+                            sleep(Duration::from_micros(10)).await;
 
-                    in_flight.fetch_sub(1, Ordering::SeqCst);
-                    Ok(())
+                            in_flight.fetch_sub(1, Ordering::SeqCst);
+                            Ok(())
+                        }
+                        Err(_) => Err(()),
+                    }
                 });
                 futures.push(OpFuture::Pending(handle));
             }

@@ -82,17 +82,19 @@ impl PrioritySemaphore {
 
     /// (internal) Called when a permit is returned.
     pub(crate) fn dispatch_next(&self) {
-        if self.closed.load(Ordering::Acquire) {
-            return;
-        }
+        let closed = self.closed.load(Ordering::Acquire);
         let mut waiters = self.waiters.lock();
-        if let Some(entry) = waiters.pop() {
-            entry.waker.wake();
-        } else {
-            let prev = self.permits.fetch_add(1, Ordering::AcqRel);
-            if prev >= self.max_permit {
-                self.permits.store(self.max_permit, Ordering::Release);
+
+        if !closed {
+            if let Some(entry) = waiters.pop() {
+                entry.waker.wake();
+                return;
             }
+        }
+
+        let prev = self.permits.fetch_add(1, Ordering::AcqRel);
+        if prev >= self.max_permit {
+            self.permits.store(self.max_permit, Ordering::Release);
         }
     }
 
