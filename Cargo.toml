@@ -1,6 +1,6 @@
 [package]
 name = "priority-semaphore"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 description = "Runtime-agnostic priority-aware async semaphore for Rust."
 license = "MIT OR Apache-2.0"
@@ -8,7 +8,7 @@ repository = "https://github.com/h-sumiya/priority-semaphore"
 readme = "README.md"
 keywords = ["async", "semaphore", "priority", "tokio", "concurrency"]
 categories = ["concurrency", "asynchronous"]
-
+documentation = "https://docs.rs/priority-semaphore/"
 
 [lib]
 crate-type = ["rlib"]
