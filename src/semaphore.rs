@@ -2,7 +2,8 @@
 
 use crate::{error::*, permit::Permit, queue::WaitQueue, waiter::AcquireFuture};
 use alloc::sync::Arc;
-use core::sync::atomic::AtomicUsize;
+use core::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use crate::lock::Lock;
 
 /// 整数が大きいほど高優先度
 pub type Priority = i32;
@@ -10,8 +11,9 @@ pub type Priority = i32;
 /// Async-aware priority semaphore.
 pub struct PrioritySemaphore {
     permits: AtomicUsize,
-    waiters: WaitQueue,
+    pub(crate) waiters: Lock<WaitQueue>,
     max_permit: usize,
+    pub(crate) closed: AtomicBool,
 }
 
 impl PrioritySemaphore {
@@ -19,42 +21,83 @@ impl PrioritySemaphore {
     pub const fn new(permits: usize) -> Self {
         Self {
             permits: AtomicUsize::new(permits),
-            waiters: WaitQueue::new(),
+            waiters: Lock::new(WaitQueue::new()),
             max_permit: permits,
+            closed: AtomicBool::new(false),
         }
     }
 
     /// Async acquire (cancellation-safe).
     pub fn acquire(self: &Arc<Self>, prio: Priority) -> AcquireFuture {
-        unimplemented!()
+        AcquireFuture {
+            root: self.clone(),
+            prio,
+            in_queue: false,
+            wait_id: None,
+        }
     }
 
     /// Try immediate acquire.
-    pub fn try_acquire(self: &Arc<Self>, prio: Priority) -> Result<Permit, TryAcquireError> {
-        unimplemented!()
+    pub fn try_acquire(self: &Arc<Self>, _prio: Priority) -> Result<Permit, TryAcquireError> {
+        if self.closed.load(Ordering::Acquire) {
+            return Err(TryAcquireError::Closed);
+        }
+        let mut curr = self.permits.load(Ordering::Acquire);
+        loop {
+            if curr == 0 {
+                return Err(TryAcquireError::NoPermits);
+            }
+            match self.permits.compare_exchange_weak(
+                curr,
+                curr - 1,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            ) {
+                Ok(_) => return Ok(Permit::new(self.clone())),
+                Err(actual) => curr = actual,
+            }
+        }
     }
 
     /// Close the semaphore: further acquires fail.
     pub fn close(&self) {
-        unimplemented!()
+        if self.closed.swap(true, Ordering::AcqRel) {
+            return;
+        }
+        let mut waiters = self.waiters.lock();
+        while let Some(entry) = waiters.pop() {
+            entry.waker.wake();
+        }
     }
 
     /// Number of currently available permits.
     pub fn available_permits(&self) -> usize {
-        unimplemented!()
+        self.permits.load(Ordering::Acquire)
     }
 
     /// Number of tasks waiting in the queue.
     pub fn queued(&self) -> usize {
-        unimplemented!()
+        self.waiters.lock().len()
     }
 
     /// (internal) Called when a permit is returned.
     pub(crate) fn dispatch_next(&self) {
-        unimplemented!()
+        if self.closed.load(Ordering::Acquire) {
+            return;
+        }
+        let mut waiters = self.waiters.lock();
+        if let Some(entry) = waiters.pop() {
+            entry.waker.wake();
+        } else {
+            let prev = self.permits.fetch_add(1, Ordering::AcqRel);
+            if prev >= self.max_permit {
+                self.permits.store(self.max_permit, Ordering::Release);
+            }
+        }
     }
 
     pub(crate) fn remove_waiter(&self, id: usize) {
-        unimplemented!()
+        let mut waiters = self.waiters.lock();
+        waiters.remove(id);
     }
 }
