@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use priority_semaphore::{PrioritySemaphore, TryAcquireError};
+use std::sync::Arc;
 
 fn main() {
     let sem = Arc::new(PrioritySemaphore::new(2));

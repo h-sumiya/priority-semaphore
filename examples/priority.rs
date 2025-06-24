@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use priority_semaphore::PrioritySemaphore;
+use std::sync::Arc;
 
 #[tokio::main]
 async fn main() {

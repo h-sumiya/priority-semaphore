@@ -1,5 +1,5 @@
+use priority_semaphore::{AcquireError, PrioritySemaphore, TryAcquireError};
 use std::sync::Arc;
-use priority_semaphore::{PrioritySemaphore, AcquireError, TryAcquireError};
 
 #[tokio::test(start_paused = true)]
 async fn permits_released_on_drop() {
@@ -42,13 +42,15 @@ async fn close_wakes_waiters() {
     assert!(matches!(sem.try_acquire(1), Err(TryAcquireError::Closed)));
 }
 
-
 #[test]
 fn try_acquire_behaviour() {
     let sem = Arc::new(PrioritySemaphore::new(1));
     let permit = sem.try_acquire(0).unwrap();
     assert_eq!(sem.available_permits(), 0);
-    assert!(matches!(sem.try_acquire(0), Err(TryAcquireError::NoPermits)));
+    assert!(matches!(
+        sem.try_acquire(0),
+        Err(TryAcquireError::NoPermits)
+    ));
     drop(permit);
     assert!(sem.try_acquire(0).is_ok());
 }
