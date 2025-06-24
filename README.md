@@ -1,5 +1,7 @@
 # priority-semaphore
 
+[日本語](./README.ja.md)
+
 Runtime-agnostic priority aware asynchronous semaphore for Rust.
 
 This crate allows tasks to acquire permits with a signed priority. Higher
@@ -44,13 +46,13 @@ More examples can be found in the [`examples`](./examples) directory.
 
 ## Crate features
 
-| Feature  | Default | Description                           |
-|---------|---------|---------------------------------------|
-| `tokio` | ✔       | Enable support for the Tokio runtime   |
-| `async-std` | ❌ | Enable support for async-std           |
-| `ageing` | ❌ | Simple ageing strategy to reduce starvation |
-| `std`    | ✔       | Use the standard library               |
-| `docsrs` | ❌     | Internal feature used by docs.rs       |
+| Feature     | Default | Description                                 |
+| ----------- | ------- | ------------------------------------------- |
+| `tokio`     | ✔       | Enable support for the Tokio runtime        |
+| `async-std` | ❌      | Enable support for async-std                |
+| `ageing`    | ❌      | Simple ageing strategy to reduce starvation |
+| `std`       | ✔       | Use the standard library                    |
+| `docsrs`    | ❌      | Internal feature used by docs.rs            |
 
 ## License
 

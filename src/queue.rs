@@ -51,11 +51,7 @@ impl WaitQueue {
     pub fn push(&mut self, prio: Priority, waker: Waker) -> usize {
         let id = self.next_id;
         self.next_id += 1;
-        self.heap.push(WaiterEntry {
-            prio,
-            waker,
-            id,
-        });
+        self.heap.push(WaiterEntry { prio, waker, id });
         self.sift_up(self.heap.len() - 1);
         id
     }
