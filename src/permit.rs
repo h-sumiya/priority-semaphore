@@ -1,7 +1,7 @@
 //! RAII guard returned by [`PrioritySemaphore::acquire`].
 
-use alloc::sync::Arc;
 use crate::semaphore::PrioritySemaphore;
+use alloc::sync::Arc;
 
 /// Returned by successful acquire; releases permit on `Drop`.
 pub struct Permit {

@@ -6,12 +6,12 @@ use crate::{
     semaphore::PrioritySemaphore,
 };
 use alloc::sync::Arc;
+use core::sync::atomic::Ordering;
 use core::{
     future::Future,
     pin::Pin,
     task::{Context, Poll},
 };
-use core::sync::atomic::Ordering;
 
 /// Future returned by `PrioritySemaphore::acquire`.
 pub struct AcquireFuture {

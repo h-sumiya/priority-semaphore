@@ -15,21 +15,21 @@ crate-type = ["rlib"]
 
 
 [dependencies]
-
-tokio = { version = "1", optional = true, default-features = false, features = [
-    "sync",
-    "rt",
-] }
 async-std = { version = "1", optional = true, default-features = false, features = [
     "attributes",
 ] }
 
 futures = { version = "0.3", optional = true, default-features = false }
+tokio = { version = "1", optional = true, default-features = false, features = [
+    "sync",
+    "rt",
+] }
 
 [dev-dependencies]
-tokio = { version = "1", features = ["full", "test-util"] }
-futures = "0.3"
 criterion = { version = "0.6", default-features = false }
+futures = "0.3"
+rand = { version = "0.9", default-features = false, features = ["std_rng"] }
+tokio = { version = "1", features = ["full", "test-util"] }
 
 [features]
 # Enable the standard library by default so that the semaphore

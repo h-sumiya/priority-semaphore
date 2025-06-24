@@ -1,22 +1,24 @@
 //! Priority-ordered wait-queue based on `BinaryHeap`.
 
+use crate::semaphore::Priority;
 use alloc::vec::Vec;
 use core::cmp::Ordering;
 use core::task::Waker;
-use crate::semaphore::Priority;
 
 /// Internal queue entry holding waker & metadata.
 #[derive(Debug)]
 pub(crate) struct WaiterEntry {
-    pub prio:  Priority,
+    pub prio: Priority,
     pub waker: Waker,
-    pub id:    usize,
+    pub id: usize,
     pub weight: u32,
 }
 
 impl Eq for WaiterEntry {}
 impl PartialEq for WaiterEntry {
-    fn eq(&self, other: &Self) -> bool { self.id == other.id }
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
 }
 impl Ord for WaiterEntry {
     fn cmp(&self, other: &Self) -> Ordering {
@@ -47,7 +49,12 @@ impl WaitQueue {
     pub fn push(&mut self, prio: Priority, weight: u32, waker: Waker) -> usize {
         let id = self.next_id;
         self.next_id += 1;
-        self.heap.push(WaiterEntry { prio, waker, id, weight });
+        self.heap.push(WaiterEntry {
+            prio,
+            waker,
+            id,
+            weight,
+        });
         self.sift_up(self.heap.len() - 1);
         id
     }

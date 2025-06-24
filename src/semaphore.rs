@@ -1,9 +1,9 @@
 //! Core implementation of [`PrioritySemaphore`].
 
+use crate::lock::Lock;
 use crate::{error::*, permit::Permit, queue::WaitQueue, waiter::AcquireFuture};
 use alloc::sync::Arc;
 use core::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use crate::lock::Lock;
 
 /// 整数が大きいほど高優先度
 pub type Priority = i32;

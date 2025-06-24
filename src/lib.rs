@@ -4,17 +4,16 @@
 
 //! Runtime-agnostic priority semaphore.
 //!
-//! 有効な Cargo feature に応じて `tokio` / `async-std` などで動作します。
 
 extern crate alloc;
 #[cfg(feature = "std")]
 extern crate std;
 
 mod error;
+mod lock;
 mod permit;
 mod queue;
 mod semaphore;
-mod lock;
 mod util;
 mod waiter;
 
