@@ -1,41 +1,58 @@
-# priority-semaphore (WIP,for ai agents)
+# priority-semaphore
 
-Tiny, runtime-agnostic **priority-aware async semaphore** for Rust.  
-_Currently under heavy development—APIs and internals will break._
+Runtime-agnostic priority aware asynchronous semaphore for Rust.
 
----
+This crate allows tasks to acquire permits with a signed priority. Higher
+priorities wake first, making it easy to favour important work while still
+preventing starvation.
 
-## 📂 `src/` layout
+## Features
 
-| File               | Purpose (1-liner)                                          |
-| ------------------ | ---------------------------------------------------------- |
-| **`lib.rs`**       | Crate entry; feature gates & public re-exports.            |
-| **`semaphore.rs`** | Core `PrioritySemaphore` logic (permits, dispatch, close). |
-| **`permit.rs`**    | RAII guard that returns the permit on `Drop`.              |
-| **`queue.rs`**     | High-performance heap queue (`push / pop / remove`).       |
-| **`waiter.rs`**    | `AcquireFuture`; cancellation-safe `poll` & cleanup.       |
-| **`error.rs`**     | Tiny error enums (`TryAcquireError`, `AcquireError`).      |
-| **`util.rs`**      | Misc helpers/macros (`doc_cfg`, loom shims, etc.).         |
+- Works with **Tokio** or **async-std** (feature gated)
+- Cancellation safe `acquire`
+- Optional ageing strategy via the `ageing` feature
+- Zero `unsafe` code
 
----
-
-## ⚡ Quick idea
-
-_Works like Tokio’s semaphore, but tasks carry a signed `priority`._  
-Higher numbers wake first; starvation strategies (aging / round-robin) are feature-toggled.
+## Example
 
 ```rust
-let sem = Arc::new(PrioritySemaphore::new(3));
+use std::sync::Arc;
+use priority_semaphore::PrioritySemaphore;
 
-let hi = sem.clone();
-tokio::spawn(async move {
-    let _p = hi.acquire(10).await.unwrap(); // high prio
-    /* … */
-});
+#[tokio::main]
+async fn main() {
+    let sem = Arc::new(PrioritySemaphore::new(1));
 
-let lo = sem.clone();
-tokio::spawn(async move {
-    let _p = lo.acquire(1).await.unwrap(); // low prio
-    /* … */
-});
+    let hi = sem.clone();
+    let h = tokio::spawn(async move {
+        let _permit = hi.acquire(10).await.unwrap();
+        println!("high priority job");
+    });
+
+    let lo = sem.clone();
+    let l = tokio::spawn(async move {
+        let _permit = lo.acquire(1).await.unwrap();
+        println!("low priority job");
+    });
+
+    h.await.unwrap();
+    l.await.unwrap();
+}
 ```
+
+More examples can be found in the [`examples`](./examples) directory.
+
+## Crate features
+
+| Feature  | Default | Description                           |
+|---------|---------|---------------------------------------|
+| `tokio` | ✔       | Enable support for the Tokio runtime   |
+| `async-std` | ❌ | Enable support for async-std           |
+| `ageing` | ❌ | Simple ageing strategy to reduce starvation |
+| `std`    | ✔       | Use the standard library               |
+| `docsrs` | ❌     | Internal feature used by docs.rs       |
+
+## License
+
+This project is licensed under either the MIT license or the
+Apache License 2.0, at your option.
