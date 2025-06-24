@@ -32,7 +32,9 @@ futures = "0.3"
 criterion = { version = "0.6", default-features = false }
 
 [features]
-default = ["tokio"]
+# Enable the standard library by default so that the semaphore
+# can be used across threads in tests and examples.
+default = ["tokio", "std"]
 tokio = ["dep:tokio", "dep:futures"]
 async-std = ["dep:async-std", "dep:futures"]
 ageing = []
