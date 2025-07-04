@@ -28,35 +28,47 @@ impl Future for AcquireFuture {
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
 
-        match this.root.try_acquire(this.prio) {
-            Ok(permit) => {
-                if this.in_queue {
-                    if let Some(id) = this.wait_id.take() {
-                        this.root.remove_waiter(id);
+        loop {
+            match this.root.try_acquire(this.prio) {
+                Ok(permit) => {
+                    if this.in_queue {
+                        if let Some(id) = this.wait_id.take() {
+                            this.root.remove_waiter(id);
+                        }
+                        this.in_queue = false;
                     }
-                    this.in_queue = false;
+                    return Poll::Ready(Ok(permit));
                 }
-                return Poll::Ready(Ok(permit));
+                Err(TryAcquireError::Closed) => {
+                    if this.in_queue {
+                        if let Some(id) = this.wait_id.take() {
+                            this.root.remove_waiter(id);
+                        }
+                        this.in_queue = false;
+                    }
+                    return Poll::Ready(Err(AcquireError::Closed));
+                }
+                Err(TryAcquireError::NoPermits) => {}
             }
-            Err(TryAcquireError::Closed) => return Poll::Ready(Err(AcquireError::Closed)),
-            Err(TryAcquireError::NoPermits) => {}
-        }
 
-        if this.root.closed.load(Ordering::Acquire) {
-            return Poll::Ready(Err(AcquireError::Closed));
-        }
+            if this.root.closed.load(Ordering::Acquire) {
+                return Poll::Ready(Err(AcquireError::Closed));
+            }
 
-        if !this.in_queue {
-            let mut queue = this.root.waiters.lock();
-            let id = queue.push(this.prio, cx.waker().clone());
-            this.wait_id = Some(id);
-            this.in_queue = true;
-        } else if let Some(id) = this.wait_id {
-            let mut queue = this.root.waiters.lock();
-            queue.update_waker(id, cx.waker().clone());
-        }
+            if !this.in_queue {
+                let mut queue = this.root.waiters.lock();
+                let id = queue.push(this.prio, cx.waker().clone());
+                this.wait_id = Some(id);
+                this.in_queue = true;
+                // Try again in case a permit became available after queuing
+                continue;
+            } else if let Some(id) = this.wait_id {
+                let mut queue = this.root.waiters.lock();
+                queue.update_waker(id, cx.waker().clone());
+            }
 
-        Poll::Pending
+            return Poll::Pending;
+        }
     }
 }
 
