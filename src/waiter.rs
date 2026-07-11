@@ -1,25 +1,82 @@
-//! Future & waiter helpers.
+//! Acquire future and direct-handoff state.
 
 use crate::{
-    error::{AcquireError, TryAcquireError},
+    error::AcquireError,
     permit::Permit,
-    semaphore::PrioritySemaphore,
+    queue::WaitKey,
+    semaphore::{Priority, PrioritySemaphore, RegisterResult},
 };
 use alloc::sync::Arc;
-use core::sync::atomic::Ordering;
 use core::{
     future::Future,
     pin::Pin,
+    sync::atomic::{AtomicU8, Ordering},
     task::{Context, Poll},
 };
 
-/// Future returned by `PrioritySemaphore::acquire`.
+const WAITING: u8 = 0;
+const ASSIGNED: u8 = 1;
+const CLOSED: u8 = 2;
+
+/// State shared between a queued future and the thread returning a permit.
 #[derive(Debug)]
+pub(crate) struct Waiter(AtomicU8);
+
+impl Waiter {
+    pub(crate) const fn new() -> Self {
+        Self(AtomicU8::new(WAITING))
+    }
+
+    pub(crate) fn assign(&self) {
+        self.0.store(ASSIGNED, Ordering::Release);
+    }
+
+    pub(crate) fn close(&self) {
+        self.0.store(CLOSED, Ordering::Release);
+    }
+
+    pub(crate) fn is_waiting(&self) -> bool {
+        self.0.load(Ordering::Acquire) == WAITING
+    }
+
+    pub(crate) fn is_assigned(&self) -> bool {
+        self.0.load(Ordering::Acquire) == ASSIGNED
+    }
+
+    fn status(&self) -> u8 {
+        self.0.load(Ordering::Acquire)
+    }
+}
+
+#[derive(Debug)]
+enum Phase {
+    Initial,
+    Waiting { key: WaitKey, waiter: Arc<Waiter> },
+    Complete,
+}
+
+/// Future returned by [`PrioritySemaphore::acquire`](crate::PrioritySemaphore::acquire).
+///
+/// Dropping this future is cancellation-safe in every state, including after
+/// a permit has been assigned but before the executor polls it again.
+#[derive(Debug)]
+#[must_use = "futures do nothing unless polled or awaited"]
 pub struct AcquireFuture {
-    pub(crate) root: Arc<PrioritySemaphore>,
-    pub(crate) prio: i32,
-    pub(crate) in_queue: bool,
-    pub(crate) wait_id: Option<usize>,
+    // Option lets a completed future move its existing Arc directly into the
+    // permit instead of paying for an increment/decrement pair per acquire.
+    root: Option<Arc<PrioritySemaphore>>,
+    priority: Priority,
+    phase: Phase,
+}
+
+impl AcquireFuture {
+    pub(crate) fn new(root: Arc<PrioritySemaphore>, priority: Priority) -> Self {
+        Self {
+            root: Some(root),
+            priority,
+            phase: Phase::Initial,
+        }
+    }
 }
 
 impl Future for AcquireFuture {
@@ -27,57 +84,74 @@ impl Future for AcquireFuture {
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
-
-        loop {
-            match this.root.try_acquire(this.prio) {
-                Ok(permit) => {
-                    if this.in_queue {
-                        if let Some(id) = this.wait_id.take() {
-                            this.root.remove_waiter(id);
-                        }
-                        this.in_queue = false;
-                    }
-                    return Poll::Ready(Ok(permit));
+        match &this.phase {
+            Phase::Initial => match this.root.as_ref().unwrap().try_take() {
+                Ok(()) => {
+                    let root = this.root.take().unwrap();
+                    this.phase = Phase::Complete;
+                    Poll::Ready(Ok(Permit::new(root)))
                 }
-                Err(TryAcquireError::Closed) => {
-                    if this.in_queue {
-                        if let Some(id) = this.wait_id.take() {
-                            this.root.remove_waiter(id);
-                        }
-                        this.in_queue = false;
-                    }
-                    return Poll::Ready(Err(AcquireError::Closed));
+                Err(crate::TryAcquireError::Closed) => {
+                    this.root = None;
+                    this.phase = Phase::Complete;
+                    Poll::Ready(Err(AcquireError::Closed))
                 }
-                Err(TryAcquireError::NoPermits) => {}
-            }
-
-            if this.root.closed.load(Ordering::Acquire) {
-                return Poll::Ready(Err(AcquireError::Closed));
-            }
-
-            if !this.in_queue {
-                let mut queue = this.root.waiters.lock();
-                let id = queue.push(this.prio, cx.waker().clone());
-                this.wait_id = Some(id);
-                this.in_queue = true;
-                // Try again in case a permit became available after queuing
-                continue;
-            } else if let Some(id) = this.wait_id {
-                let mut queue = this.root.waiters.lock();
-                queue.update_waker(id, cx.waker().clone());
-            }
-
-            return Poll::Pending;
+                Err(crate::TryAcquireError::NoPermits) => {
+                    match this
+                        .root
+                        .as_ref()
+                        .unwrap()
+                        .register(this.priority, cx.waker())
+                    {
+                        RegisterResult::Acquired => {
+                            let root = this.root.take().unwrap();
+                            this.phase = Phase::Complete;
+                            Poll::Ready(Ok(Permit::new(root)))
+                        }
+                        RegisterResult::Closed => {
+                            this.root = None;
+                            this.phase = Phase::Complete;
+                            Poll::Ready(Err(AcquireError::Closed))
+                        }
+                        RegisterResult::Queued { key, waiter } => {
+                            this.phase = Phase::Waiting { key, waiter };
+                            Poll::Pending
+                        }
+                    }
+                }
+            },
+            Phase::Waiting { key, waiter } => match waiter.status() {
+                ASSIGNED => {
+                    let root = this.root.take().unwrap();
+                    this.phase = Phase::Complete;
+                    Poll::Ready(Ok(Permit::new(root)))
+                }
+                CLOSED => {
+                    this.root = None;
+                    this.phase = Phase::Complete;
+                    Poll::Ready(Err(AcquireError::Closed))
+                }
+                WAITING => {
+                    this.root
+                        .as_ref()
+                        .unwrap()
+                        .refresh_waker(*key, waiter, cx.waker());
+                    // The status may have changed before refresh_waker took
+                    // the queue lock. In that case the corresponding wake is
+                    // already guaranteed, so Pending remains correct.
+                    Poll::Pending
+                }
+                _ => unreachable!("invalid waiter state"),
+            },
+            Phase::Complete => panic!("AcquireFuture polled after completion"),
         }
     }
 }
 
 impl Drop for AcquireFuture {
     fn drop(&mut self) {
-        if self.in_queue {
-            if let Some(id) = self.wait_id {
-                self.root.remove_waiter(id);
-            }
+        if let (Some(root), Phase::Waiting { key, waiter }) = (&self.root, &self.phase) {
+            root.cancel_waiter(*key, waiter);
         }
     }
 }

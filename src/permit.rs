@@ -17,7 +17,6 @@ impl Permit {
 
 impl Drop for Permit {
     fn drop(&mut self) {
-        // Give permit back and wake next waiter
-        self.root.dispatch_next();
+        self.root.release_one();
     }
 }

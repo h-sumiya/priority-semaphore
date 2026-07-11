@@ -1,43 +1,42 @@
-//! Simple synchronization primitive used internally by the semaphore.
+//! Small, non-poisoning synchronization primitive used by the short queue
+//! critical sections.
 
 #[cfg(feature = "std")]
 pub(crate) mod imp {
-    use std::sync::{Mutex as StdMutex, MutexGuard as StdGuard};
+    use parking_lot::{Mutex, MutexGuard};
 
-    /// Wrapper around `std::sync::Mutex`.
     #[derive(Debug)]
-    pub(crate) struct Lock<T>(StdMutex<T>);
+    pub(crate) struct Lock<T>(Mutex<T>);
 
     impl<T> Lock<T> {
         /// Create a new locked value.
         pub const fn new(value: T) -> Self {
-            Self(StdMutex::new(value))
+            Self(Mutex::new(value))
         }
 
         /// Lock and get mutable access to the inner value.
-        pub fn lock(&self) -> StdGuard<'_, T> {
-            self.0.lock().unwrap()
+        pub fn lock(&self) -> MutexGuard<'_, T> {
+            self.0.lock()
         }
     }
 }
 
 #[cfg(not(feature = "std"))]
 pub(crate) mod imp {
-    use core::cell::{RefCell, RefMut};
+    use spin::{Mutex, MutexGuard, relax::Spin};
 
-    /// `RefCell` based lock used in `no_std` environments.
     #[derive(Debug)]
-    pub(crate) struct Lock<T>(RefCell<T>);
+    pub(crate) struct Lock<T>(Mutex<T>);
 
     impl<T> Lock<T> {
         /// Create a new locked value.
         pub const fn new(value: T) -> Self {
-            Self(RefCell::new(value))
+            Self(Mutex::new(value))
         }
 
         /// Borrow the inner value mutably.
-        pub fn lock(&self) -> RefMut<'_, T> {
-            self.0.borrow_mut()
+        pub fn lock(&self) -> MutexGuard<'_, T, Spin> {
+            self.0.lock()
         }
     }
 }

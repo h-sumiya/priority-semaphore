@@ -1,7 +1,7 @@
 //! Error types.
 
 /// Returned by `try_acquire` when no permits are immediately available.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TryAcquireError {
     /// All permits are currently in use.
     NoPermits,
@@ -22,7 +22,7 @@ impl core::fmt::Display for TryAcquireError {
 impl std::error::Error for TryAcquireError {}
 
 /// Returned by async `acquire`.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AcquireError {
     /// Semaphore was closed before acquisition succeeded.
     Closed,

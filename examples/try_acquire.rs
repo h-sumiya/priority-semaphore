@@ -2,21 +2,22 @@ use priority_semaphore::{PrioritySemaphore, TryAcquireError};
 use std::sync::Arc;
 
 fn main() {
-    let sem = Arc::new(PrioritySemaphore::new(2));
+    let semaphore = Arc::new(PrioritySemaphore::new(2));
 
-    match sem.try_acquire(0) {
-        Ok(_permit) => println!("first permit immediate"),
-        Err(_) => println!("failed to acquire first permit"),
-    }
+    // Keep both guards alive: a permit is returned when its guard is dropped.
+    let first = semaphore.try_acquire(0).unwrap();
+    let second = semaphore.try_acquire(0).unwrap();
+    assert_eq!(semaphore.available_permits(), 0);
 
-    match sem.try_acquire(0) {
-        Ok(_permit) => println!("second permit immediate"),
-        Err(_) => println!("failed to acquire second permit"),
-    }
+    assert_eq!(
+        semaphore.try_acquire(0).unwrap_err(),
+        TryAcquireError::NoPermits
+    );
 
-    match sem.try_acquire(0) {
-        Ok(_) => println!("unexpected third permit"),
-        Err(TryAcquireError::NoPermits) => println!("no permits left"),
-        Err(TryAcquireError::Closed) => unreachable!(),
-    }
+    drop(first);
+    let third = semaphore.try_acquire(0).unwrap();
+    println!("one returned permit was acquired immediately");
+
+    drop((second, third));
+    assert_eq!(semaphore.available_permits(), 2);
 }

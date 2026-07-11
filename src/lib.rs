@@ -5,9 +5,10 @@
 //! Runtime-agnostic priority semaphore.
 //!
 //! This crate provides [`PrioritySemaphore`], an asynchronous semaphore where
-//! waiters supply a signed priority. Higher priorities are awakened before
-//! lower ones. The implementation is runtime agnostic and works with either
-//! **Tokio** or **async-std** when the corresponding feature is enabled.
+//! waiters supply a signed priority. Higher priorities are granted returned
+//! permits before lower ones, and equal priorities use FIFO order. The
+//! implementation uses only the standard `Future`/`Waker` contract and does
+//! not depend on a particular async runtime.
 //!
 //! ```rust
 //! use std::sync::Arc;
@@ -15,19 +16,10 @@
 //!
 //! # #[tokio::main]
 //! # async fn main() {
-//! let sem = Arc::new(PrioritySemaphore::new(1));
-//!
-//! let hi = sem.clone();
-//! tokio::spawn(async move {
-//!     let _permit = hi.acquire(10).await.unwrap();
-//!     println!("high priority acquired");
-//! });
-//!
-//! let lo = sem.clone();
-//! tokio::spawn(async move {
-//!     let _permit = lo.acquire(1).await.unwrap();
-//!     println!("low priority acquired");
-//! });
+//! let semaphore = Arc::new(PrioritySemaphore::new(4));
+//! let permit = semaphore.acquire(10).await.unwrap();
+//! // The permit is returned automatically, including during unwinding.
+//! drop(permit);
 //! # }
 //! ```
 
@@ -46,3 +38,4 @@ mod waiter;
 pub use crate::error::{AcquireError, TryAcquireError};
 pub use crate::permit::Permit;
 pub use crate::semaphore::{Priority, PrioritySemaphore};
+pub use crate::waiter::AcquireFuture;
