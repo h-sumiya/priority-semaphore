@@ -7,7 +7,7 @@ use std::{
 };
 
 use priority_semaphore::{PrioritySemaphore, TryAcquireError};
-use rand::{Rng, SeedableRng, rngs::StdRng};
+use rand::{RngExt, SeedableRng, rngs::StdRng};
 use tokio::time::sleep;
 
 const MAX_PERMITS: usize = 5;
